@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>GST ITC Calculator - Rule 88A</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #f5f7fb;
+}
+
+header {
+    width: 100%;
+    margin: 0;
+    padding: 20px 0;
+    background: linear-gradient(90deg, #1e3c72, #2a5298);
+    color: white;
+    font-size: 22px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.container {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 25px;
+    padding: 20px;
+}
+
+.card {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+}
+
+input, select {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 12px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+}
+
+button {
+    width: 100%;
+    padding: 10px;
+    background: #2a5298;
+    border: none;
+    color: white;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #1e3c72;
+}
+
+.error {
+    color: red;
+    font-size: 13px;
+    margin-bottom: 10px;
+}
+
+.warning {
+    color: #e67e22;
+    font-size: 13px;
+    margin-bottom: 10px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+th, td {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    text-align: center;
+}
+
+th {
+    background: #f0f2f7;
+}
+
+.summary-box {
+    display: flex;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.summary-item {
+    flex: 1;
+    background: #f0f2f7;
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: 600;
+}
+
+footer {
+    width: 100%;
+    margin: 0;
+    padding: 18px 0;
+    background: linear-gradient(90deg, #1e3c72, #2a5298);
+    color: white;
+    font-size: 14px;
+    text-align: center;
+}
+
+@media(max-width:900px){
+    .container { grid-template-columns: 1fr; }
+}
+
+</style>
+</head>
+
+<body>
+
+<header>
+GST Input Tax Credit Calculator (Rule 88A Compliant)
+</header>
+
+<div class="container">
+
+<div class="card">
+
+<h3>Input Details</h3>
+
+<label>Law Mode</label>
+<select id="lawMode">
+    <option value="strict">Strict GST Law (No CGST ↔ SGST Cross)</option>
+    <option value="flexible">Flexible Mode (Allow Cross Utilisation)</option>
+</select>
+
+<h4>Output Tax Liability</h4>
+<input type="number" id="igstOut" placeholder="IGST Output">
+<input type="number" id="cgstOut" placeholder="CGST Output">
+<input type="number" id="sgstOut" placeholder="SGST Output">
+
+<h4>Available ITC</h4>
+<input type="number" id="igstItc" placeholder="IGST ITC">
+<input type="number" id="cgstItc" placeholder="CGST ITC">
+<input type="number" id="sgstItc" placeholder="SGST ITC">
+
+<h4>ITC Reversal</h4>
+<input type="number" id="igstRev" placeholder="IGST Reversal">
+<input type="number" id="cgstRev" placeholder="CGST Reversal">
+<input type="number" id="sgstRev" placeholder="SGST Reversal">
+
+<div id="errorBox"></div>
+
+<button onclick="calculate()">Calculate ITC Set-off</button>
+
+</div>
+
+<div class="card">
+
+<h3>Computation Summary</h3>
+
+<table id="resultTable">
+<thead>
+<tr>
+<th>Tax Head</th>
+<th>Output Before</th>
+<th>ITC Utilized</th>
+<th>Net Payable</th>
+<th>Remaining ITC</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<div class="summary-box">
+<div class="summary-item" id="totalOutput">Total Output: ₹0</div>
+<div class="summary-item" id="totalITC">Total ITC Used: ₹0</div>
+<div class="summary-item" id="netPay">Net Payable: ₹0</div>
+</div>
+
+<canvas id="chart"></canvas>
+
+</div>
+
+</div>
+
+<footer>
+<p>© <span id="year"></span> Tamanna Sayyed. All Rights Reserved.</p>
+</footer>
+
+<script>
+
+document.getElementById("year").innerText = new Date().getFullYear();
+
+let chart;
+
+function calculate(){
+
+let errorBox = document.getElementById("errorBox");
+errorBox.innerHTML="";
+
+let igstOut = +document.getElementById("igstOut").value || 0;
+let cgstOut = +document.getElementById("cgstOut").value || 0;
+let sgstOut = +document.getElementById("sgstOut").value || 0;
+
+let igstItc = +document.getElementById("igstItc").value || 0;
+let cgstItc = +document.getElementById("cgstItc").value || 0;
+let sgstItc = +document.getElementById("sgstItc").value || 0;
+
+let igstRev = +document.getElementById("igstRev").value || 0;
+let cgstRev = +document.getElementById("cgstRev").value || 0;
+let sgstRev = +document.getElementById("sgstRev").value || 0;
+
+let values = [igstOut,cgstOut,sgstOut,igstItc,cgstItc,sgstItc,igstRev,cgstRev,sgstRev];
+
+for(let v of values){
+    if(v < 0){
+        errorBox.innerHTML = "<div class='error'>Negative values are not allowed.</div>";
+        return;
+    }
+}
+
+if((igstOut+cgstOut+sgstOut)===0){
+    errorBox.innerHTML = "<div class='warning'>Warning: Total output liability is zero.</div>";
+}
+
+igstItc = Math.max(0, igstItc - igstRev);
+cgstItc = Math.max(0, cgstItc - cgstRev);
+sgstItc = Math.max(0, sgstItc - sgstRev);
+
+let original = {IGST:igstOut, CGST:cgstOut, SGST:sgstOut};
+let utilized = {IGST:0, CGST:0, SGST:0};
+
+let use1 = Math.min(igstItc, igstOut);
+igstOut -= use1;
+igstItc -= use1;
+utilized.IGST += use1;
+
+if(igstItc > 0){
+
+    // Apply to whichever liability is higher first
+    if(cgstOut >= sgstOut){
+
+        let useC = Math.min(igstItc, cgstOut);
+        cgstOut -= useC;
+        igstItc -= useC;
+        utilized.CGST += useC;
+
+        let useS = Math.min(igstItc, sgstOut);
+        sgstOut -= useS;
+        igstItc -= useS;
+        utilized.SGST += useS;
+
+    } else {
+
+        let useS = Math.min(igstItc, sgstOut);
+        sgstOut -= useS;
+        igstItc -= useS;
+        utilized.SGST += useS;
+
+        let useC = Math.min(igstItc, cgstOut);
+        cgstOut -= useC;
+        igstItc -= useC;
+        utilized.CGST += useC;
+    }
+}
+
+let use2 = Math.min(cgstItc,cgstOut);
+cgstOut-=use2;
+cgstItc-=use2;
+utilized.CGST+=use2;
+
+let use3 = Math.min(sgstItc,sgstOut);
+sgstOut-=use3;
+sgstItc-=use3;
+utilized.SGST+=use3;
+
+if(document.getElementById("lawMode").value==="flexible"){
+let cross1 = Math.min(cgstItc,sgstOut);
+sgstOut-=cross1;
+cgstItc-=cross1;
+utilized.SGST+=cross1;
+
+let cross2 = Math.min(sgstItc,cgstOut);
+cgstOut-=cross2;
+sgstItc-=cross2;
+utilized.CGST+=cross2;
+}
+
+let remaining = {IGST:igstItc,CGST:cgstItc,SGST:sgstItc};
+let net = {IGST:igstOut,CGST:cgstOut,SGST:sgstOut};
+
+display(original,utilized,net,remaining);
+drawChart(utilized,net);
+}
+
+function display(original,utilized,net,remaining){
+
+let tbody=document.querySelector("#resultTable tbody");
+tbody.innerHTML="";
+
+["IGST","CGST","SGST"].forEach(t=>{
+tbody.innerHTML+=`<tr>
+<td>${t}</td>
+<td>₹${original[t]}</td>
+<td>₹${utilized[t]}</td>
+<td>₹${net[t]}</td>
+<td>₹${remaining[t]}</td>
+</tr>`;
+});
+
+let totalOut = original.IGST + original.CGST + original.SGST;
+let totalITCUsed = utilized.IGST + utilized.CGST + utilized.SGST;
+let totalNet = net.IGST + net.CGST + net.SGST;
+
+document.getElementById("totalOutput").innerText = "Total Output: ₹" + totalOut;
+document.getElementById("totalITC").innerText = "Total ITC Used: ₹" + totalITCUsed;
+document.getElementById("netPay").innerText = "Net Payable: ₹" + totalNet;
+}
+
+function drawChart(utilized,net){
+
+if(chart) chart.destroy();
+
+chart=new Chart(document.getElementById("chart"),{
+type:"bar",
+data:{
+labels:["ITC Used","Net Payable"],
+datasets:[{
+label:"Amount (INR)",
+data:[
+utilized.IGST+utilized.CGST+utilized.SGST,
+net.IGST+net.CGST+net.SGST
+],
+backgroundColor:["#2ecc71","#e74c3c"]
+}]
+}
+});
+}
+
+</script>
+
+</body>
+</html>
